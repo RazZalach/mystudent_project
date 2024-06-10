@@ -1,21 +1,10 @@
-const mongoose=require('mongoose');
+const mongoose = require('mongoose');
 const Students_Model = require('../models/Students');
 const bcrypt = require('bcrypt');
-
-function GetRandomString(length){
-    let str="";
-    const chars="abcdefghijklmnopqrstuvwxyz0123456789ABCDEF!@#%&";
-    let index;
-    for(let i=0;i<length;i++){
-        index=Math.floor(Math.random() * chars.length); // ceil --- > floor 
-        str+=chars[index];
-    }
-    return str;
-}
+const jwt = require('jsonwebtoken');
 
 module.exports = {
-
-    Add_Student : async (req,res) => {
+    Add_Student: async (req, res) => {
         console.log(req.body);
         const { Name, Age, Grades, Password } = req.body;
         const salt = await bcrypt.genSalt(12);
@@ -24,36 +13,49 @@ module.exports = {
 
         const new_Student = new Students_Model({
             _id: new mongoose.Types.ObjectId(),
-            Name,Age,Grades,
-            Password: hashedPassword 
+            Name,
+            Age,
+            Grades,
+            Password: hashedPassword
         });
         const result = await new_Student.save();
 
         console.log(result);
 
         return res.status(200).json(result);
+    },
 
-    } ,
     Student_Login: async (req, res) => {
+      
         const { Name, Password } = req.body;
-        const student = await Students_Model.findOne({ Name });// למצוא באמצעות מזהה יחודי ברוב המקרים - אימייל 
-        console.log(student);
-        console.log(Password);
+        const student = await Students_Model.findOne({ Name });
+
         if (!student) {
             return res.status(404).json({ message: "Student not found" });
         }
+
         const passwordMatch = await bcrypt.compare(Password, student.Password);
-        const salt = await bcrypt.genSalt(12);
-        const hashedPassword = await bcrypt.hash(Password, salt);
-        console.log(hashedPassword);
-        console.log(student.Password);
+
         if (passwordMatch) {
-            return res.status(200).json({ message: "Login successful" });
+            const user = { name: student.Name };
+            const accessToken = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET);
+            return res.status(200).json({ message: "Login successful", accessToken });
         } else {
             return res.status(401).json({ message: "Invalid credentials" });
         }
+       
     },
 
-
-
-}
+    getallStu: async (req, res) => {
+        try {
+            const students = await Students_Model.find();
+            if (students.length > 0) {
+                return res.status(200).json(students);
+            } else {
+                return res.status(404).json({ message: "No students found" });
+            }
+        } catch (error) {
+            return res.status(500).json({ message: "Server Error occurred" });
+        }
+    }
+};
